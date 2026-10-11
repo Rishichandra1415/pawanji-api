@@ -17,16 +17,22 @@ export function errorHandler(
 ) {
   // A failed request must not leave an orphan upload behind.
   if (req.file?.path) fs.unlink(req.file.path, () => undefined);
+  if (req.files) {
+    const files = Array.isArray(req.files) ? req.files : Object.values(req.files).flat();
+    for (const file of files) fs.unlink(file.path, () => undefined);
+  }
 
   if (err instanceof AppError) {
     return sendError(res, err.message, err.statusCode, err.errors);
   }
 
   if (err instanceof MulterError) {
+    const isVideo = err.field === "video";
+    const kind = isVideo ? "Video" : err.field === "attachment" ? "File" : "Photo";
     const message =
       err.code === "LIMIT_FILE_SIZE"
-        ? `Photo must be smaller than ${env.upload.maxFileSizeMb} MB`
-        : "Photo upload failed";
+        ? `${kind} must be smaller than ${isVideo ? env.upload.maxVideoSizeMb : env.upload.maxFileSizeMb} MB`
+        : `${kind} upload failed`;
     return sendError(res, message, 422);
   }
 

@@ -43,7 +43,7 @@ export const BASE_COLUMN_DEFINITIONS: Record<string, string> = {
 };
 
 /** Tables that support the shared soft-delete helpers. */
-export type SoftDeleteTable = "admin_users" | "departments" | "grievances" | "grievance_forwards" | "news";
+export type SoftDeleteTable = "admin_users" | "departments" | "grievances" | "grievance_forwards" | "news" | "video_categories" | "videos" | "meeting_requests";
 
 /** SQL fragment that joins admin names for the audit columns. Expects the main table aliased as `t`. */
 export const AUDIT_JOINS_SQL = `

@@ -14,12 +14,17 @@ export async function runMigrations(): Promise<void> {
   await createDepartments();
   await createGrievances();
   await createGrievanceForwards();
+  await createMeetingRequests();
+  await createVideoCategories();
+  await seedVideoCategories();
+  await createVideos();
+  await upgradeVideos();
 
   await seedAdmin();
   await seedDepartments();
   await seedNews();
 
-  console.log("[api] migrations ok (admin_users, news, departments, grievances, grievance_forwards)");
+  console.log("[api] migrations ok (admin_users, news, departments, grievances, grievance_forwards, meeting_requests, video_categories, videos)");
 }
 
 const TABLE_OPTIONS = "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
@@ -177,7 +182,132 @@ async function createGrievanceForwards() {
   `);
 }
 
+async function createMeetingRequests() {
+  await execute(`
+    CREATE TABLE IF NOT EXISTS meeting_requests (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      requestNo VARCHAR(60) NOT NULL,
+      category ENUM('personal','public') NOT NULL DEFAULT 'personal',
+      name VARCHAR(120) NOT NULL,
+      mobile VARCHAR(15) NOT NULL,
+      village VARCHAR(150) NOT NULL,
+      subject VARCHAR(150) NOT NULL,
+      details TEXT NOT NULL,
+      attachmentPath VARCHAR(300) NULL,
+      attachmentName VARCHAR(200) NULL,
+      attachmentType VARCHAR(80) NULL,
+      status ENUM('new','contacted','scheduled','completed','cancelled') NOT NULL DEFAULT 'new',
+      meetingAt DATETIME NULL,
+      meetingPlace VARCHAR(200) NULL,
+      adminNote TEXT NULL,
+      source VARCHAR(20) NOT NULL DEFAULT 'website',
+      language VARCHAR(5) NULL,
+      ipAddress VARCHAR(45) NULL,
+      ${BASE_COLUMNS_SQL},
+      PRIMARY KEY (id),
+      UNIQUE KEY uq_meeting_requests_no (requestNo),
+      KEY idx_meeting_requests_state (isDeleted, status, createdAt),
+      KEY idx_meeting_requests_mobile (mobile)
+    ) ${TABLE_OPTIONS}
+  `);
+}
+
 type CountRow = RowDataPacket & { total: number };
+
+async function createVideoCategories() {
+  await execute(`
+    CREATE TABLE IF NOT EXISTS video_categories (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      nameEn VARCHAR(120) NOT NULL,
+      nameHi VARCHAR(120) NOT NULL,
+      description VARCHAR(500) NULL,
+      sortOrder INT NOT NULL DEFAULT 0,
+      ${BASE_COLUMNS_SQL},
+      PRIMARY KEY (id),
+      KEY idx_video_categories_name (nameEn, isDeleted),
+      KEY idx_video_categories_state (isDeleted, isActive, sortOrder)
+    ) ${TABLE_OPTIONS}
+  `);
+}
+
+/** Old `videos.category` codes mapped to the seeded master names (used once while upgrading). */
+const DEFAULT_VIDEO_CATEGORIES = [
+  { legacyCode: "development", nameEn: "Development Work", nameHi: "विकास कार्य" },
+  { legacyCode: "janata_darshan", nameEn: "Janata Darshan", nameHi: "जनता दर्शन" },
+  { legacyCode: "event", nameEn: "Events & Programs", nameHi: "कार्यक्रम" },
+  { legacyCode: "speech", nameEn: "Speeches", nameHi: "संबोधन" },
+  { legacyCode: "media", nameEn: "Media & Interviews", nameHi: "मीडिया" },
+];
+
+async function seedVideoCategories() {
+  if (!(await isEmpty("video_categories"))) return;
+
+  for (const [index, category] of DEFAULT_VIDEO_CATEGORIES.entries()) {
+    await execute(
+      `INSERT INTO video_categories (nameEn, nameHi, sortOrder) VALUES (:nameEn, :nameHi, :sortOrder)`,
+      { nameEn: category.nameEn, nameHi: category.nameHi, sortOrder: (index + 1) * 10 },
+    );
+  }
+  console.log(`[api] seeded ${DEFAULT_VIDEO_CATEGORIES.length} video categories`);
+}
+
+/** Moves the old enum-like `category` column to `categoryId` + `categoryName` (no FK by design). */
+async function upgradeVideos() {
+  const columns = await columnsOf("videos");
+  if (!columns.has("categoryId")) {
+    await execute("ALTER TABLE videos ADD COLUMN categoryId INT UNSIGNED NULL AFTER descriptionHi");
+  }
+  if (!columns.has("categoryName")) {
+    await execute("ALTER TABLE videos ADD COLUMN categoryName VARCHAR(120) NULL AFTER categoryId");
+  }
+
+  if (columns.has("category")) {
+    for (const category of DEFAULT_VIDEO_CATEGORIES) {
+      await execute(
+        `UPDATE videos v
+           JOIN video_categories c ON c.nameEn = :nameEn AND c.isDeleted = 0
+            SET v.categoryId = c.id, v.categoryName = c.nameEn
+          WHERE v.category = :code AND v.categoryId IS NULL`,
+        { nameEn: category.nameEn, code: category.legacyCode },
+      );
+    }
+    if ((await indexesOf("videos")).has("idx_videos_category")) {
+      await execute("ALTER TABLE videos DROP INDEX idx_videos_category");
+    }
+    await execute("ALTER TABLE videos DROP COLUMN category");
+  }
+
+  if (!(await indexesOf("videos")).has("idx_videos_categoryId")) {
+    await execute("ALTER TABLE videos ADD KEY idx_videos_categoryId (categoryId)");
+  }
+}
+
+async function createVideos() {
+  await execute(`
+    CREATE TABLE IF NOT EXISTS videos (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      titleEn VARCHAR(200) NOT NULL,
+      titleHi VARCHAR(200) NOT NULL,
+      descriptionEn VARCHAR(1000) NULL,
+      descriptionHi VARCHAR(1000) NULL,
+      categoryId INT UNSIGNED NULL,
+      categoryName VARCHAR(120) NULL,
+      sourceType ENUM('youtube','url','upload') NOT NULL,
+      youtubeId VARCHAR(20) NULL,
+      videoUrl VARCHAR(500) NULL,
+      videoPath VARCHAR(300) NULL,
+      thumbnailPath VARCHAR(300) NULL,
+      location VARCHAR(150) NULL,
+      recordedOn DATE NULL,
+      showOnHome TINYINT(1) NOT NULL DEFAULT 0,
+      sortOrder INT NOT NULL DEFAULT 0,
+      ${BASE_COLUMNS_SQL},
+      PRIMARY KEY (id),
+      KEY idx_videos_state (isDeleted, isActive, showOnHome, sortOrder),
+      KEY idx_videos_categoryId (categoryId)
+    ) ${TABLE_OPTIONS}
+  `);
+}
 
 async function isEmpty(table: string): Promise<boolean> {
   const rows = await query<CountRow[]>(`SELECT COUNT(*) AS total FROM ${table}`);

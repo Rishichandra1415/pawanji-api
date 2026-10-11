@@ -55,6 +55,7 @@ export const env = {
   upload: {
     dir: path.resolve(__dirname, "../../", process.env.UPLOAD_DIR ?? "uploads"),
     maxFileSizeMb: Number(process.env.UPLOAD_MAX_MB ?? 5),
+    maxVideoSizeMb: Number(process.env.UPLOAD_VIDEO_MAX_MB ?? 100),
   },
 };
 
