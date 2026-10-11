@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from "express";
+import { currentUser } from "../../middleware/auth";
 import { sendSuccess } from "../../utils/api-response";
 import * as newsService from "./news.service";
 
@@ -33,8 +34,26 @@ export const getBySlug = async (req: Request, res: Response, next: NextFunction)
 
 export const create = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const data = await newsService.create(req.body);
+    const data = await newsService.create(req.body, currentUser(req).id);
     return sendSuccess(res, data, "News item created", 201);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const remove = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await newsService.remove(Number(req.params.id), req.body.deletedRemarks, currentUser(req).id);
+    return sendSuccess(res, null, "News item deleted");
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const restore = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const data = await newsService.restore(Number(req.params.id), currentUser(req).id);
+    return sendSuccess(res, data, "News item restored");
   } catch (error) {
     return next(error);
   }

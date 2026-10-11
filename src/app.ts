@@ -11,8 +11,9 @@ import { errorHandler, notFoundHandler } from "./middleware/error-handler";
 export function createApp() {
   const app = express();
 
-  app.use(helmet({ contentSecurityPolicy: false }));
-  app.use(cors());
+  app.set("trust proxy", 1);
+  app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: "cross-origin" } }));
+  app.use(cors(env.corsOrigins.length ? { origin: env.corsOrigins } : undefined));
   app.use(express.json({ limit: "2mb" }));
   app.use(express.urlencoded({ extended: true }));
   app.use(morgan(env.nodeEnv === "production" ? "combined" : "dev"));
@@ -28,6 +29,11 @@ export function createApp() {
       },
     });
   });
+
+  app.use(
+    `${env.apiPrefix}/uploads`,
+    express.static(env.upload.dir, { index: false, dotfiles: "deny", maxAge: "7d" }),
+  );
 
   app.use(
     `${env.apiPrefix}/docs`,

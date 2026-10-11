@@ -1,4 +1,5 @@
 import { Response } from "express";
+import type { PaginationMeta } from "./pagination";
 
 export function sendSuccess<T>(
   res: Response,
@@ -10,6 +11,20 @@ export function sendSuccess<T>(
     success: true,
     message,
     data,
+  });
+}
+
+export function sendPaginated<T>(
+  res: Response,
+  data: T[],
+  meta: PaginationMeta,
+  message = "OK",
+) {
+  return res.status(200).json({
+    success: true,
+    message,
+    data,
+    meta,
   });
 }
 

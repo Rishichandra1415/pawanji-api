@@ -1,6 +1,8 @@
 import { Router } from "express";
+import { requireAuth } from "../../middleware/auth";
 import { validate } from "../../middleware/validate";
-import { create, getById, getBySlug, list } from "./news.controller";
+import { deletePayloadSchema } from "../../utils/common-validation";
+import { create, getById, getBySlug, list, remove, restore } from "./news.controller";
 import {
   createNewsSchema,
   newsIdParamSchema,
@@ -63,7 +65,7 @@ const router = Router();
  *         description: Validation failed
  */
 router.get("/", list);
-router.post("/", validate(createNewsSchema, "body"), create);
+router.post("/", requireAuth, validate(createNewsSchema, "body"), create);
 
 /**
  * @openapi
@@ -104,5 +106,32 @@ router.get("/slug/:slug", validate(newsSlugParamSchema, "params"), getBySlug);
  *         description: Not found
  */
 router.get("/:id", validate(newsIdParamSchema, "params"), getById);
+
+/**
+ * @openapi
+ * /news/{id}:
+ *   delete:
+ *     tags: [News]
+ *     summary: Soft delete news item (remarks required)
+ *     security: [{ bearerAuth: [] }]
+ *     parameters: [{ in: path, name: id, required: true, schema: { type: integer } }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema: { $ref: '#/components/schemas/DeleteInput' }
+ *     responses:
+ *       200: { description: Deleted }
+ * /news/{id}/restore:
+ *   patch:
+ *     tags: [News]
+ *     summary: Restore a soft-deleted news item
+ *     security: [{ bearerAuth: [] }]
+ *     parameters: [{ in: path, name: id, required: true, schema: { type: integer } }]
+ *     responses:
+ *       200: { description: Restored }
+ */
+router.delete("/:id", requireAuth, validate(newsIdParamSchema, "params"), validate(deletePayloadSchema), remove);
+router.patch("/:id/restore", requireAuth, validate(newsIdParamSchema, "params"), restore);
 
 export default router;

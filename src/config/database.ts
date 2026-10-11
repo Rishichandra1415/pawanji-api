@@ -20,6 +20,12 @@ export function getPool(): Pool {
       waitForConnections: true,
       connectionLimit: 10,
       namedPlaceholders: true,
+      timezone: "Z",
+      dateStrings: false,
+    });
+    // DATETIME values are stored and read as UTC regardless of the server's zone.
+    pool.on("connection", (connection) => {
+      connection.query("SET time_zone = '+00:00'");
     });
   }
   return pool;

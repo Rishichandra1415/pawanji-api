@@ -26,9 +26,15 @@ const options: swaggerJsdoc.Options = {
     ],
     tags: [
       { name: "Health", description: "Service health checks" },
+      { name: "Auth", description: "Admin login" },
+      { name: "Departments", description: "Department master (grievance routing + emails)" },
+      { name: "Grievances", description: "Citizen grievances from the website form" },
       { name: "News", description: "News articles (example resource)" },
     ],
     components: {
+      securitySchemes: {
+        bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
+      },
       schemas: {
         ApiSuccess: {
           type: "object",
@@ -54,11 +60,60 @@ const options: swaggerJsdoc.Options = {
             slug: { type: "string", example: "constituency-visit-ghorasahan" },
             summary: { type: "string", nullable: true },
             content: { type: "string" },
-            cover_image: { type: "string", nullable: true },
-            is_published: { type: "integer", example: 1 },
-            published_at: { type: "string", format: "date-time", nullable: true },
-            created_at: { type: "string", format: "date-time" },
-            updated_at: { type: "string", format: "date-time" },
+            coverImage: { type: "string", nullable: true },
+            isPublished: { type: "integer", example: 1 },
+            publishedAt: { type: "string", format: "date-time", nullable: true },
+            isActive: { type: "integer", example: 1 },
+            isDeleted: { type: "integer", example: 0 },
+            createdBy: { type: "integer", nullable: true },
+            createdAt: { type: "string", format: "date-time" },
+            updatedBy: { type: "integer", nullable: true },
+            updatedAt: { type: "string", format: "date-time", nullable: true },
+            deletedBy: { type: "integer", nullable: true },
+            deletedAt: { type: "string", format: "date-time", nullable: true },
+            deletedRemarks: { type: "string", nullable: true },
+          },
+        },
+        LoginInput: {
+          type: "object",
+          required: ["email", "password"],
+          properties: {
+            email: { type: "string", format: "email" },
+            password: { type: "string" },
+          },
+        },
+        DeleteInput: {
+          type: "object",
+          required: ["deletedRemarks"],
+          properties: { deletedRemarks: { type: "string", minLength: 3, maxLength: 500 } },
+        },
+        DepartmentInput: {
+          type: "object",
+          required: ["code", "nameEn", "nameHi"],
+          properties: {
+            code: { type: "string", example: "electricity" },
+            nameEn: { type: "string", example: "Electricity / Light (बिजली)" },
+            nameHi: { type: "string", example: "बिजली / लाइट" },
+            email: { type: "string", format: "email", nullable: true },
+            ccEmails: { type: "string", description: "Comma separated", nullable: true },
+            contactPerson: { type: "string", nullable: true },
+            phone: { type: "string", nullable: true },
+            sortOrder: { type: "integer", default: 0 },
+            isActive: { type: "boolean", default: true },
+          },
+        },
+        GrievanceInput: {
+          type: "object",
+          required: ["name", "mobile", "address", "description", "departmentId"],
+          properties: {
+            name: { type: "string" },
+            mobile: { type: "string", example: "9876543210" },
+            village: { type: "string" },
+            address: { type: "string" },
+            description: { type: "string" },
+            departmentId: { type: "integer" },
+            language: { type: "string", enum: ["hi", "en"] },
+            photo: { type: "string", format: "binary" },
           },
         },
         CreateNewsInput: {
@@ -81,7 +136,7 @@ const options: swaggerJsdoc.Options = {
     },
   },
   apis: [
-    path.join(__dirname, "../modules/**/*.route.{ts,js}"),
+    path.join(__dirname, "../modules/**/*.routes.{ts,js}"),
     path.join(__dirname, "../docs/*.{ts,js}"),
   ],
 };
